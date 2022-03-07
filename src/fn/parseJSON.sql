@@ -19,6 +19,7 @@ Date			Modifier		Task			Remark
 ----------		---------		-----------		---------------------------------
 
 
+20220307    PD  不转义 保留原始数据
 20220304    PD    @token 200->MAX
 20170316    PD    add 排除null
 desc
@@ -88,18 +89,21 @@ BEGIN
 	        BREAK --no more
 	      SELECT @token=SUBSTRING(@json, @start+1, @end-1)
 	      --now put in the escaped control characters
-	      SELECT @token=REPLACE(@token, FROMString, TOString)
-	      FROM
-	        (SELECT
-	          '\"' AS FromString, '"' AS ToString
-	         UNION ALL SELECT '\\', '\'
-	         UNION ALL SELECT '\/', '/'
-	         UNION ALL SELECT '\b', CHAR(08)
-	         UNION ALL SELECT '\f', CHAR(12)
-	         UNION ALL SELECT '\n', CHAR(10)
-	         UNION ALL SELECT '\r', CHAR(13)
-	         UNION ALL SELECT '\t', CHAR(09)
-	        ) substitutions
+
+          --20220307 不转义 保留原始数据
+	      --SELECT @token=REPLACE(@token, FROMString, TOString)
+	      --FROM
+	      --  (SELECT
+	      --    '\"' AS FromString, '"' AS ToString
+	      --   UNION ALL SELECT '\\', '\'
+	      --   UNION ALL SELECT '\/', '/'
+	      --   UNION ALL SELECT '\b', CHAR(08)
+	      --   UNION ALL SELECT '\f', CHAR(12)
+	      --   UNION ALL SELECT '\n', CHAR(10)
+	      --   UNION ALL SELECT '\r', CHAR(13)
+	      --   UNION ALL SELECT '\t', CHAR(09)
+	      --  ) substitutions
+
 	      SELECT @result=0, @escape=1
 	  --Begin to take out any hex escape codes
 	      WHILE @escape>0

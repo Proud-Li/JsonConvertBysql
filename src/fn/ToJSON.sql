@@ -20,8 +20,8 @@ Modified history
 Date			Modifier		Task			Remark
 ----------		---------		-----------		---------------------------------
 
-
-20170316 PD 去掉:的左空格
+20220307    PD  不转义 保留原始数据
+20170316    PD  去掉:的左空格
 desc	 
 
 example:
@@ -98,7 +98,9 @@ CREATE FUNCTION ToJSON
 	           +'@Object'+CONVERT(VARCHAR(5),TheRow.[OBJECT_ID])+@CrLf+SPACE(@indent+2)+']' 
 	        WHEN 'object' then '  {'+@CrLf+SPACE(@indent+2)
 	           +'@Object'+CONVERT(VARCHAR(5),TheRow.[OBJECT_ID])+@CrLf+SPACE(@indent+2)+'}'
-	        WHEN 'string' THEN '"'+dbo.JSONEscaped(TheRow.StringValue)+'"'
+            --20220307 不转义 保留原始数据
+	        WHEN 'string' THEN '"'+TheRow.StringValue+'"'
+	        --WHEN 'string' THEN '"'+dbo.JSONEscaped(TheRow.StringValue)+'"'
 	        ELSE TheRow.StringValue
 	       END 
 	     FROM @Hierarchy TheRow 

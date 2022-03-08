@@ -18,7 +18,7 @@ Modified history
 Date			Modifier		Task			Remark
 ----------		---------		-----------		---------------------------------
 
-
+20220308    PD  负数与bigint/dec(18,6)/dec(26,12) 解析
 20220307    PD  不转义 保留原始数据
 20220304    PD    @token 200->MAX
 20170316    PD    add 排除null
@@ -61,8 +61,10 @@ BEGIN
         @result BIGINT,--the value of the hex symbol being parsed
         @index SMALLINT,--used for parsing the hex value
         @Escape INT --the index of the next escape character
+
+        ,@ValueType varchar(10)=''
 	    
-	    --20170316 add �ų�null
+	    --20170316 add isnull
 	    select @JSON=isnull(@JSON,'')
 	    
 	  DECLARE @Strings TABLE /* in this temporary table we keep all strings, even the names of the elements, since they are 'escaped' in a different way, and may contain, unescaped, brackets denoting objects or lists. These are replaced in the JSON string by tokens representing the string */
@@ -180,7 +182,7 @@ BEGIN
 	  WHILE (PATINDEX('%[A-Za-z0-9@+.e]%', @contents collate SQL_Latin1_General_CP850_Bin))<>0 
 	    BEGIN
 	      IF @Type='Object' --it will be a 0-n list containing a string followed by a string, number,boolean, or null
-	        BEGIN
+            BEGIN
 	          SELECT
 	            @SequenceNo=0,@end=CHARINDEX(':', ' '+@contents)--if there is anything, it will be a string-based name.
 	          SELECT  @start=PATINDEX('%[^A-Za-z@][@]%', ' '+@contents collate SQL_Latin1_General_CP850_Bin)--AAAAAAAA
@@ -197,15 +199,18 @@ BEGIN
 	        SELECT @Name=null,@SequenceNo=@SequenceNo+1 
 	      SELECT
 	        @end=CHARINDEX(',', @contents)-- a string-token, object-token, list-token, number,boolean, or null
+
+            --20220308 add [A-Za-z0-9@+.e] -> [A-Za-z0-9@+-.e]
 	      IF @end=0 
-	        SELECT  @end=PATINDEX('%[A-Za-z0-9@+.e][^A-Za-z0-9@+.e]%', @Contents+' ' collate SQL_Latin1_General_CP850_Bin)
+	        SELECT  @end=PATINDEX('%[A-Za-z0-9@+-.e][^A-Za-z0-9@+-.e]%', @Contents+' ' collate SQL_Latin1_General_CP850_Bin)
 	          +1
 	       SELECT
-	        @start=PATINDEX('%[^A-Za-z0-9@+.e][A-Za-z0-9@+.e]%', ' '+@contents collate SQL_Latin1_General_CP850_Bin)
+            @start=PATINDEX('%[^A-Za-z0-9@+-.e][A-Za-z0-9@+-.e]%', ' '+@contents collate SQL_Latin1_General_CP850_Bin)
 	      --select @start,@end, LEN(@contents+'|'), @contents  
 	      SELECT
 	        @Value=RTRIM(SUBSTRING(@contents, @start, @End-@Start)),
 	        @Contents=RIGHT(@contents+' ', LEN(@contents+'|')-@end)
+
 	      IF SUBSTRING(@value, 1, 7)='@object' 
 	        INSERT INTO @hierarchy
 	          (NAME, SequenceNo, parent_ID, StringValue, [Object_ID], ValueType)
@@ -235,14 +240,55 @@ BEGIN
 	                  (NAME, SequenceNo, parent_ID, StringValue, ValueType)
 	                  SELECT @name, @SequenceNo, @parent_ID, @value, 'null'
 	              ELSE
-	                IF PATINDEX('%[^0-9]%', @value collate SQL_Latin1_General_CP850_Bin)>0 
-	                  INSERT INTO @hierarchy
-	                    (NAME, SequenceNo, parent_ID, StringValue, ValueType)
-	                    SELECT @name, @SequenceNo, @parent_ID, @value, 'real'
-	                ELSE
-	                  INSERT INTO @hierarchy
-	                    (NAME, SequenceNo, parent_ID, StringValue, ValueType)
-	                    SELECT @name, @SequenceNo, @parent_ID, @value, 'int'
+                  Begin
+                        --20220308 [^0-9] -> [^0-9-]
+	                    IF PATINDEX('%[^0-9-]%', @value collate SQL_Latin1_General_CP850_Bin)>0 
+                        Begin
+                            set @ValueType='real'
+
+                            --
+	                        IF PATINDEX('%[^0-9-.]%', @value collate SQL_Latin1_General_CP850_Bin)>0
+                            begin
+                                set @ValueType='real'
+                            end
+                            else if len(@value)>19
+                            begin
+                                set @ValueType='dec(26,12)'
+                            end
+                            else
+                            begin
+                                set @ValueType='dec(18,6)'
+                            end
+
+
+	                        INSERT INTO @hierarchy
+	                        (NAME, SequenceNo, parent_ID, StringValue, ValueType)
+	                        SELECT @name, @SequenceNo, @parent_ID, @value, @ValueType
+                        End
+	                    ELSE
+                        Begin
+                            --20220308
+                            set @ValueType='int'
+                        
+                            if len(@value)>11
+                            begin
+                                set @ValueType='bigint'
+                            end
+                            else if -2147483648<=convert(bigint,@value) and convert(bigint,@value)<=2147483647
+                            begin
+                                set @ValueType='int'
+                            end
+                            else
+                            begin
+                                set @ValueType='bigint'
+                            end
+
+	                        INSERT INTO @hierarchy
+	                        (NAME, SequenceNo, parent_ID, StringValue, ValueType)
+	                        SELECT @name, @SequenceNo, @parent_ID, @value, @ValueType
+                        End
+
+                   End
 	      if @Contents=' ' Select @SequenceNo=0
         END
     END

@@ -4,6 +4,7 @@ declare @json nvarchar(max)
 select @json='{}'
 
 --Table->JSON
+--
 select @json=
     (select 
         mst=(

@@ -79,12 +79,13 @@ BEGIN
         order by a.element_id
 
 
-        --if @Debug=1 select * from #tmp_name
+        if @Debug=1
+        begin
+            select * from #tmp_name
+            select * from #tmp2
+        end
 
-	    select @sql="
-		    select a.parent_ID"
-	    select @sql=@sql+"
-			    ,"
+	    select @sql=@sql+","
                 +"max(case when a.[NAME]='"+a.[NAME]+"' then "
                 + case a.ValueType
                     when 'string' then "nullif(a.StringValue,'null')"
@@ -95,13 +96,16 @@ BEGIN
                     else "nullif(a.StringValue,'null')" end
                     --else "a.StringValue" end
                 +" else null end)" 
-                +" as ["+a.[NAME]+"]" 
+                +" as ["+a.[NAME]+"]"+char(13)+char(10)
 	    from #tmp_name a  
 
-	    set @sql = @sql +"
-		    from #tmp2 a   
-		    group by a.parent_ID 
-		    "
+        select @sql=STUFF(@sql,1,1,'')
+
+	    set @sql ="
+select " + @sql +"
+from #tmp2 a
+group by a.parent_ID
+" 
 
 	    print(@sql)  
 
